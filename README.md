@@ -1,7 +1,7 @@
 # Golang bindings for the Telegram Bot API
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/go-telegram-bot-api/telegram-bot-api/v5.svg)](https://pkg.go.dev/github.com/go-telegram-bot-api/telegram-bot-api/v5)
-[![Test](https://github.com/go-telegram-bot-api/telegram-bot-api/actions/workflows/test.yml/badge.svg)](https://github.com/go-telegram-bot-api/telegram-bot-api/actions/workflows/test.yml)
+[![Test](https://github.com/artlibs/telegram-bot-api/actions/workflows/test.yml/badge.svg)](https://github.com/artlibs/telegram-bot-api/actions/workflows/test.yml)
 
 All methods are fairly self-explanatory, and reading the [godoc](https://pkg.go.dev/github.com/go-telegram-bot-api/telegram-bot-api/v5) page should
 explain everything. If something isn't clear, open an issue or submit
@@ -20,7 +20,7 @@ you want to ask questions or discuss development.
 ## Example
 
 First, ensure the library is installed and up to date by running
-`go get -u github.com/go-telegram-bot-api/telegram-bot-api/v5`.
+`go get -u github.com/artlibs/telegram-bot-api`.
 
 This is a very simple bot that just displays any gotten updates,
 then replies it to that chat.
@@ -31,11 +31,12 @@ package main
 import (
 	"log"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbotapi "github.com/artlibs/telegram-bot-api"
 )
 
 func main() {
-	bot, err := tgbotapi.NewBotAPI("MyAwesomeBotToken")
+    dnsServers := []string{"8.8.8.8:53",}
+	bot, err := tgbotapi.NewBotAPIWithDNS("MyAwesomeBotToken", dnsServers)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -72,11 +73,12 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/artlibs/telegram-bot-api"
 )
 
 func main() {
-	bot, err := tgbotapi.NewBotAPI("MyAwesomeBotToken")
+    dnsServers := []string{"8.8.8.8:53",}
+	bot, err := tgbotapi.NewBotAPIWithDNS("MyAwesomeBotToken", dnsServers)
 	if err != nil {
 		log.Fatal(err)
 	}

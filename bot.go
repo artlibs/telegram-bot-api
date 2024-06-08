@@ -3,11 +3,14 @@
 package tgbotapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,36 +32,95 @@ type BotAPI struct {
 	Client          HTTPClient `json:"-"`
 	shutdownChannel chan interface{}
 
-	apiEndpoint string
+	hosts []string
+}
+
+func NewHttpClient(dnsServers []string) *http.Client {
+	if len(dnsServers) == 0 {
+		return &http.Client{Timeout: 30 * time.Second}
+	}
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Resolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				for _, server := range dnsServers {
+					d := net.Dialer{Timeout: 10 * time.Second}
+					conn, err := d.DialContext(ctx, "udp", server)
+					if err == nil {
+						return conn, nil
+					}
+				}
+				return nil, fmt.Errorf("all DNS failed")
+			},
+		},
+	}
+	cachedResolver := NewCustomCachedResolver(dialer.Resolver, 5*time.Minute)
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network string, addr string) (conn net.Conn, err error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				log.Printf("SplitHostPort err: %v\n", err)
+				return nil, err
+			}
+			ip, err := cachedResolver.FetchOneString(host)
+			if err != nil {
+				log.Printf("Fetch DNS Cache err: %v\n", err)
+				return nil, err
+			}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+		},
+		ForceAttemptHTTP2:   true,
+		MaxIdleConns:        100,
+		IdleConnTimeout:     30 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+
+	return &http.Client{Transport: transport, Timeout: 20 * time.Second}
 }
 
 // NewBotAPI creates a new BotAPI instance.
 //
 // It requires a token, provided by @BotFather on Telegram.
 func NewBotAPI(token string) (*BotAPI, error) {
-	return NewBotAPIWithClient(token, APIEndpoint, &http.Client{})
+	return NewBotAPIWithHostsAndDNS(token, []string{}, []string{})
 }
 
-// NewBotAPIWithAPIEndpoint creates a new BotAPI instance
+// NewBotAPIWithDNS creates a new BotAPI instance.
+//
+// It requires a token, provided by @BotFather on Telegram.
+func NewBotAPIWithDNS(token string, dnsServers []string) (*BotAPI, error) {
+	return NewBotAPIWithHostsAndDNS(token, []string{}, dnsServers)
+}
+
+// NewBotAPIWithHosts creates a new BotAPI instance
 // and allows you to pass API endpoint.
 //
 // It requires a token, provided by @BotFather on Telegram and API endpoint.
-func NewBotAPIWithAPIEndpoint(token, apiEndpoint string) (*BotAPI, error) {
-	return NewBotAPIWithClient(token, apiEndpoint, &http.Client{})
+func NewBotAPIWithHosts(token string, hosts []string) (*BotAPI, error) {
+	return NewBotAPIWithHostsAndDNS(token, hosts, []string{})
+}
+
+// NewBotAPIWithHostsAndDNS creates a new BotAPI instance
+// and allows you to pass API endpoint.
+//
+// It requires a token, provided by @BotFather on Telegram and API endpoint.
+func NewBotAPIWithHostsAndDNS(token string, hosts []string, dnsServers []string) (*BotAPI, error) {
+	return NewBotAPIWithClient(token, hosts, NewHttpClient(dnsServers))
 }
 
 // NewBotAPIWithClient creates a new BotAPI instance
 // and allows you to pass a http.Client.
 //
 // It requires a token, provided by @BotFather on Telegram and API endpoint.
-func NewBotAPIWithClient(token, apiEndpoint string, client HTTPClient) (*BotAPI, error) {
+func NewBotAPIWithClient(token string, hosts []string, client HTTPClient) (*BotAPI, error) {
 	bot := &BotAPI{
 		Token:           token,
 		Client:          client,
 		Buffer:          100,
 		shutdownChannel: make(chan interface{}),
-
-		apiEndpoint: apiEndpoint,
+		hosts:           hosts,
 	}
 
 	self, err := bot.GetMe()
@@ -69,11 +131,6 @@ func NewBotAPIWithClient(token, apiEndpoint string, client HTTPClient) (*BotAPI,
 	bot.Self = self
 
 	return bot, nil
-}
-
-// SetAPIEndpoint changes the Telegram Bot API endpoint used by the instance.
-func (bot *BotAPI) SetAPIEndpoint(apiEndpoint string) {
-	bot.apiEndpoint = apiEndpoint
 }
 
 func buildParams(in Params) url.Values {
@@ -96,7 +153,7 @@ func (bot *BotAPI) MakeRequest(endpoint string, params Params) (*APIResponse, er
 		log.Printf("Endpoint: %s, params: %v\n", endpoint, params)
 	}
 
-	method := fmt.Sprintf(bot.apiEndpoint, bot.Token, endpoint)
+	method := fmt.Sprintf(bot.GetAPIEndpoint(), bot.Token, endpoint)
 
 	values := buildParams(params)
 
@@ -149,7 +206,7 @@ func (bot *BotAPI) decodeAPIResponse(responseBody io.Reader, resp *APIResponse) 
 		return nil, err
 	}
 
-	// if debug, read response body
+	// if debugged, read response body
 	data, err := io.ReadAll(responseBody)
 	if err != nil {
 		return nil, err
@@ -221,7 +278,7 @@ func (bot *BotAPI) UploadFiles(endpoint string, params Params, files []RequestFi
 		log.Printf("Endpoint: %s, params: %v, with %d files\n", endpoint, params, len(files))
 	}
 
-	method := fmt.Sprintf(bot.apiEndpoint, bot.Token, endpoint)
+	method := fmt.Sprintf(bot.GetAPIEndpoint(), bot.Token, endpoint)
 
 	req, err := http.NewRequest("POST", method, r)
 	if err != nil {
@@ -272,7 +329,26 @@ func (bot *BotAPI) GetFileDirectURL(fileID string) (string, error) {
 		return "", err
 	}
 
-	return file.Link(bot.Token), nil
+	return file.Link(bot.GetFileEndpoint(), bot.Token), nil
+}
+
+func (bot *BotAPI) GetAPIEndpoint() string {
+	return bot.GetEndpoint(APIEndpoint)
+}
+
+func (bot *BotAPI) GetFileEndpoint() string {
+	return bot.GetEndpoint(FileEndpoint)
+}
+
+func (bot *BotAPI) GetEndpoint(defaultEndpoint string) string {
+	if len(bot.hosts) == 0 {
+		return defaultEndpoint
+	}
+	rand.Seed(time.Now().UnixNano())
+	randomIndex := rand.Intn(len(bot.hosts))
+	proxyHost := bot.hosts[randomIndex]
+
+	return strings.ReplaceAll(defaultEndpoint, "api.telegram.org", proxyHost)
 }
 
 // GetMe fetches the currently authenticated bot.
@@ -444,7 +520,6 @@ func (bot *BotAPI) GetUpdatesChan(config UpdateConfig) UpdatesChannel {
 				log.Println(err)
 				log.Println("Failed to get updates, retrying in 3 seconds...")
 				time.Sleep(time.Second * 3)
-
 				continue
 			}
 
