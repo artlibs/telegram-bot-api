@@ -1,21 +1,26 @@
-# Golang bindings for the Telegram Bot API
+# Golang bindings for the Telegram Bot API supports custom DNS and telegram api hosts.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/go-telegram-bot-api/telegram-bot-api/v5.svg)](https://pkg.go.dev/github.com/go-telegram-bot-api/telegram-bot-api/v5)
-[![Test](https://github.com/artlibs/telegram-bot-api/actions/workflows/test.yml/badge.svg)](https://github.com/artlibs/telegram-bot-api/actions/workflows/test.yml)
 
-All methods are fairly self-explanatory, and reading the [godoc](https://pkg.go.dev/github.com/go-telegram-bot-api/telegram-bot-api/v5) page should
-explain everything. If something isn't clear, open an issue or submit
-a pull request.
+基于[go-telegram-bot-api](https://github.com/go-telegram-bot-api/telegram-bot-api)修改的版本，以支持自定义telegram api host和自定义DNS解析：
 
-There are more tutorials and high-level information on the website, [go-telegram-bot-api.dev](https://go-telegram-bot-api.dev).
+-   `func NewBotAPI(token string) (*BotAPI, error)`
 
-The scope of this project is just to provide a wrapper around the API
-without any additional features. There are other projects for creating
-something with plugins and command handlers without having to design
-all that yourself.
+-   `func NewBotAPIWithDNS(token string, dnsServers []string) (*BotAPI, error)`
 
-Join [the development group](https://telegram.me/go_telegram_bot_api) if
-you want to ask questions or discuss development.
+    传入一组自定义DNS服务器用来作为域名解析DNS服务器
+
+-   `func NewBotAPIWithHosts(token string, hosts []string) (*BotAPI, error)`
+
+    传入一组自定义的telegram bot hosts，每次请求时随机使用一个来替换`api.telegram.org`
+
+-   `func NewBotAPIWithHostsAndDNS(token string, hosts []string, dnsServers []string) (*BotAPI, error)`
+
+    同时指定一组自定义DNS服务器地址和一组telegram bot hosts
+
+用法：在`go.mod`中添加然后执行`go mod tidy`：
+
+`require github.com/artlibs/telegram-bot-api v1.0.0`
 
 ## Example
 
