@@ -1,3 +1,3 @@
-module github.com/artlibs/telegram-bot-api
+module github.com/artlibs/tg-bot-api
 
 go 1.22
