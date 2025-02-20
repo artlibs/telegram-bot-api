@@ -10,17 +10,19 @@ import (
 )
 
 type CacheResolver struct {
+	debug    bool
 	lock     sync.RWMutex
 	cache    map[string][]net.IP
 	resolver *net.Resolver
 }
 
-func NewCachedResolver(refreshRate time.Duration) *CacheResolver {
-	return NewCustomCachedResolver(net.DefaultResolver, refreshRate)
+func NewCachedResolver(refreshRate time.Duration, debug bool) *CacheResolver {
+	return NewCustomCachedResolver(net.DefaultResolver, refreshRate, debug)
 }
 
-func NewCustomCachedResolver(resolver *net.Resolver, refreshRate time.Duration) *CacheResolver {
+func NewCustomCachedResolver(resolver *net.Resolver, refreshRate time.Duration, debug bool) *CacheResolver {
 	cacheResolver := &CacheResolver{
+		debug:    debug,
 		resolver: resolver,
 		cache:    make(map[string][]net.IP, 64),
 	}
@@ -35,7 +37,7 @@ func (r *CacheResolver) Fetch(address string) ([]net.IP, error) {
 	ips, exists := r.cache[address]
 	r.lock.RUnlock()
 	if exists {
-		if bot.Debug {
+		if r.debug {
 			log.Printf("hit DNS cache ", address, ips)
 		}
 		return ips, nil
@@ -104,7 +106,7 @@ func (r *CacheResolver) LookupIP(host string) ([]net.IP, error) {
 	for i, ia := range address {
 		ips[i] = ia.IP
 	}
-	if bot.Debug {
+	if r.debug {
 		log.Println("LookupIPAddr ", host, ips)
 	}
 

@@ -35,7 +35,7 @@ type BotAPI struct {
 	hosts []string
 }
 
-func NewHttpClient(dnsServers []string) *http.Client {
+func NewHttpClient(dnsServers []string, debug bool) *http.Client {
 	if len(dnsServers) == 0 {
 		return &http.Client{Timeout: 30 * time.Second}
 	}
@@ -56,7 +56,7 @@ func NewHttpClient(dnsServers []string) *http.Client {
 			},
 		},
 	}
-	cachedResolver := NewCustomCachedResolver(dialer.Resolver, 5*time.Minute)
+	cachedResolver := NewCustomCachedResolver(dialer.Resolver, 5*time.Minute, debug)
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network string, addr string) (conn net.Conn, err error) {
 			host, port, err := net.SplitHostPort(addr)
@@ -83,31 +83,31 @@ func NewHttpClient(dnsServers []string) *http.Client {
 // NewBotAPI creates a new BotAPI instance.
 //
 // It requires a token, provided by @BotFather on Telegram.
-func NewBotAPI(token string) (*BotAPI, error) {
-	return NewBotAPIWithHostsAndDNS(token, []string{}, []string{})
+func NewBotAPI(token string, debug bool) (*BotAPI, error) {
+	return NewBotAPIWithHostsAndDNS(token, []string{}, []string{}, debug)
 }
 
 // NewBotAPIWithDNS creates a new BotAPI instance.
 //
 // It requires a token, provided by @BotFather on Telegram.
-func NewBotAPIWithDNS(token string, dnsServers []string) (*BotAPI, error) {
-	return NewBotAPIWithHostsAndDNS(token, []string{}, dnsServers)
+func NewBotAPIWithDNS(token string, dnsServers []string, debug bool) (*BotAPI, error) {
+	return NewBotAPIWithHostsAndDNS(token, []string{}, dnsServers, debug)
 }
 
 // NewBotAPIWithHosts creates a new BotAPI instance
 // and allows you to pass API endpoint.
 //
 // It requires a token, provided by @BotFather on Telegram and API endpoint.
-func NewBotAPIWithHosts(token string, hosts []string) (*BotAPI, error) {
-	return NewBotAPIWithHostsAndDNS(token, hosts, []string{})
+func NewBotAPIWithHosts(token string, hosts []string, debug bool) (*BotAPI, error) {
+	return NewBotAPIWithHostsAndDNS(token, hosts, []string{}, debug)
 }
 
 // NewBotAPIWithHostsAndDNS creates a new BotAPI instance
 // and allows you to pass API endpoint.
 //
 // It requires a token, provided by @BotFather on Telegram and API endpoint.
-func NewBotAPIWithHostsAndDNS(token string, hosts []string, dnsServers []string) (*BotAPI, error) {
-	return NewBotAPIWithClient(token, hosts, NewHttpClient(dnsServers))
+func NewBotAPIWithHostsAndDNS(token string, hosts []string, dnsServers []string, debug bool) (*BotAPI, error) {
+	return NewBotAPIWithClient(token, hosts, NewHttpClient(dnsServers, debug))
 }
 
 // NewBotAPIWithClient creates a new BotAPI instance
