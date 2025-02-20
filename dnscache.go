@@ -35,7 +35,9 @@ func (r *CacheResolver) Fetch(address string) ([]net.IP, error) {
 	ips, exists := r.cache[address]
 	r.lock.RUnlock()
 	if exists {
-		log.Printf("hit DNS cache ", address, ips)
+		if bot.Debug {
+			log.Printf("hit DNS cache ", address, ips)
+		}
 		return ips, nil
 	}
 
@@ -102,7 +104,9 @@ func (r *CacheResolver) LookupIP(host string) ([]net.IP, error) {
 	for i, ia := range address {
 		ips[i] = ia.IP
 	}
-	log.Println("LookupIPAddr ", host, ips)
+	if bot.Debug {
+		log.Println("LookupIPAddr ", host, ips)
+	}
 
 	return ips, nil
 }
